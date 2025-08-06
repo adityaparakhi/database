@@ -1,0 +1,262 @@
+create database employee;
+use employee;
+
+-- Create Department Table
+CREATE TABLE department (
+    dept_id INT PRIMARY KEY AUTO_INCREMENT,
+    dept_name VARCHAR(100) NOT NULL,
+    location VARCHAR(100)
+);
+
+-- Create Employee Table
+CREATE TABLE employee (
+    emp_id INT PRIMARY KEY AUTO_INCREMENT,
+    emp_name VARCHAR(100) NOT NULL,
+    salary DECIMAL(10,2),
+    dept_id INT,
+    FOREIGN KEY (dept_id) REFERENCES department(dept_id)
+);
+
+-- Create History Table
+CREATE TABLE history (
+    history_id INT PRIMARY KEY AUTO_INCREMENT,
+    emp_id INT,
+    action VARCHAR(100),
+    action_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (emp_id) REFERENCES employee(emp_id)
+);
+
+
+INSERT INTO department (dept_name, location) VALUES
+('Human Resources', 'Mumbai'),
+('Engineering', 'Bangalore'),
+('Finance', 'Delhi');
+
+
+INSERT INTO employee (emp_name, salary, dept_id) VALUES
+('Aditya', 50000.00, 2),
+('Priya', 60000.00, 1),
+('Rohan', 55000.00, 3);
+
+
+INSERT INTO history (emp_id, action) VALUES
+(1, 'Hired'),
+(2, 'Promoted'),
+(3, 'Transferred');
+
+
+
+-- select for department to employee
+SELECT e.emp_id, e.emp_name, e.salary, d.dept_name
+FROM employee e
+JOIN department d ON e.dept_id = d.dept_id;
+
+-- select from histroy to employee
+SELECT h.history_id, e.emp_name, h.action, h.action_date
+FROM history h
+JOIN employee e ON h.emp_id = e.emp_id;
+
+-- update  employee 
+UPDATE employee
+SET salary = salary + 5000
+WHERE emp_id = 1;
+
+
+-- fetch from department to employee
+SELECT e.emp_name, e.salary
+FROM employee e
+JOIN department d ON e.dept_id = d.dept_id
+WHERE d.dept_name = 'Engineering';
+
+
+-- delete data
+DELETE FROM employee
+WHERE emp_id = 2;
+
+
+
+-- Trigger  Log employee actions into history when a new employee is added
+DELIMITER $$
+
+CREATE TRIGGER trg_employee_insert
+AFTER INSERT ON employee
+FOR EACH ROW
+BEGIN
+    INSERT INTO history (emp_id, action)
+    VALUES (NEW.emp_id, 'Hired');
+END$$
+
+DELIMITER ;
+
+-- Trigger Log when employee salary is updated
+DELIMITER $$
+
+CREATE TRIGGER trg_employee_salary_update
+AFTER UPDATE ON employee
+FOR EACH ROW
+BEGIN
+    IF OLD.salary <> NEW.salary THEN
+        INSERT INTO history (emp_id, action)
+        VALUES (NEW.emp_id, CONCAT('Salary updated from ', OLD.salary, ' to ', NEW.salary));
+    END IF;
+END$$
+
+DELIMITER ;
+
+
+--  Procedure: Add a new employee with department check
+DELIMITER $$
+
+CREATE PROCEDURE AddEmployee(
+    IN empName VARCHAR(100),
+    IN empSalary DECIMAL(10,2),
+    IN deptName VARCHAR(100)
+)
+BEGIN
+    DECLARE deptId INT;
+
+    -- Get department ID
+    SELECT dept_id INTO deptId FROM department WHERE dept_name = deptName;
+
+    -- If department exists, insert employee
+    IF deptId IS NOT NULL THEN
+        INSERT INTO employee(emp_name, salary, dept_id)
+        VALUES (empName, empSalary, deptId);
+    ELSE
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Department not found';
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- after procedure execution call  that 
+CALL AddEmployee('Sneha', 70000.00, 'Finance');
+
+
+-- Procedure: PromoteEmployee — increases employee's salary by a given percentage
+DELIMITER $$
+
+CREATE PROCEDURE PromoteEmployee(
+    IN empId INT,
+    IN increasePercent DECIMAL(5,2)
+)
+BEGIN
+    DECLARE currentSalary DECIMAL(10,2);
+
+    -- Get current salary
+    SELECT salary INTO currentSalary FROM employee WHERE emp_id = empId;
+
+    -- Update salary
+    UPDATE employee
+    SET salary = currentSalary + (currentSalary * increasePercent / 100)
+    WHERE emp_id = empId;
+
+    -- Log into history
+    INSERT INTO history(emp_id, action)
+    VALUES (empId, CONCAT('Promoted with ', increasePercent, '% hike'));
+END$$
+
+DELIMITER ;
+
+-- call after procedure
+CALL PromoteEmployee(1, 10);  -- 10% hike for employee with ID 1
+
+
+
+-- Function: Get total salary of a department
+DELIMITER $$
+
+CREATE FUNCTION GetTotalSalaryByDept(deptName VARCHAR(100))
+RETURNS DECIMAL(10,2)
+DETERMINISTIC
+BEGIN
+    DECLARE total DECIMAL(10,2);
+
+    SELECT SUM(e.salary) INTO total
+    FROM employee e
+    JOIN department d ON e.dept_id = d.dept_id
+    WHERE d.dept_name = deptName;
+
+    RETURN IFNULL(total, 0.00);
+END$$
+
+DELIMITER ;
+
+-- after execute function
+SELECT GetTotalSalaryByDept('Engineering') AS TotalEngineeringSalary;
+
+
+-- Function: CountEmployeesByDept — returns total employees in a department
+DELIMITER $$
+
+CREATE FUNCTION CountEmployeesByDept(deptName VARCHAR(100))
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE total INT;
+
+    SELECT COUNT(*) INTO total
+    FROM employee e
+    JOIN department d ON e.dept_id = d.dept_id
+    WHERE d.dept_name = deptName;
+
+    RETURN total;
+END$$
+
+DELIMITER ;
+
+-- call function
+SELECT CountEmployeesByDept('Finance') AS TotalEmployeesInFinance;
+
+
+
+
+
+
+
+
+MongoDB
+
+
+-- Create and Switch to Database
+use empdb
+
+
+-- Create Collection (like table) – employees
+db.createCollection("employees")
+
+
+-- Insert Multiple Documents (Rows)
+db.employees.insertMany([
+  { emp_id: 2, emp_name: "Priya", salary: 75000, dept: "HR" },
+  { emp_id: 3, emp_name: "Rohan", salary: 50000, dept: "Finance" },
+  { emp_id: 4, emp_name: "Sneha", salary: 82000, dept: "Engineering" },
+  { emp_id: 5, emp_name: "Aman", salary: 45000, dept: "Support" }
+])
+
+
+-- Fetch All Employee Records
+db.employees.find()
+
+-- Fetch One Employee (first match)
+db.employees.findOne({ emp_name: "Priya" })
+
+
+-- Fetch Employees with Salary Greater Than 60000
+db.employees.find({ salary: { $gt: 60000 } })
+
+
+-- Fetch with Formatting
+db.employees.find({ salary: { $gt: 60000 } }).pretty()
+
+
+-- Fetch with Sorting by Salary (Descending)
+db.employees.find().sort({ salary: -1 })
+
+
+
+
+
+
+
